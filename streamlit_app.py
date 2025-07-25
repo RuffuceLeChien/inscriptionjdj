@@ -6,6 +6,10 @@ import random
 import string
 from datetime import datetime, date
 import re
+import os
+import base64
+from PIL import Image
+import io
 
 # Configuration de la page
 st.set_page_config(
@@ -17,9 +21,15 @@ st.set_page_config(
 REGISTRATIONS_FILE = "registrations.json"
 CONFIRMED_FILE = "confirmed.json"
 MODERATORS_FILE = "moderators.json"
+IMAGE_CONFIG_FILE = "image_config.json"
+IMAGES_FOLDER = "uploaded_images"
 
 # Mot de passe par défaut pour les modérateurs (à changer en production)
 DEFAULT_MODERATOR_PASSWORD = "admin123"
+
+# Créer le dossier pour les images uploadées s'il n'existe pas
+if not os.path.exists(IMAGES_FOLDER):
+    os.makedirs(IMAGES_FOLDER)
 
 def load_data(filename):
     """Charge les données depuis un fichier JSON"""
@@ -58,6 +68,93 @@ def hash_password(password):
     """Hash un mot de passe"""
     return hashlib.sha256(password.encode()).hexdigest()
 
+def load_image_config():
+    """Charge la configuration de l'image"""
+    try:
+        with open(IMAGE_CONFIG_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {"image_type": "none", "image_url": "", "image_path": "", "image_caption": ""}
+
+def save_image_config(config):
+    """Sauvegarde la configuration de l'image"""
+    with open(IMAGE_CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+
+def save_uploaded_image(uploaded_file):
+    """Sauvegarde une image uploadée et retourne le chemin"""
+    if uploaded_file is not None:
+        # Générer un nom de fichier unique
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{timestamp}_{uploaded_file.name}"
+        filepath = os.path.join(IMAGES_FOLDER, filename)
+        
+        # Ouvrir et redimensionner l'image si nécessaire
+        try:
+            image = Image.open(uploaded_file)
+            
+            # Redimensionner l'image si elle est trop grande
+            max_size = (800, 600)
+            if image.size[0] > max_size[0] or image.size[1] > max_size[1]:
+                image.thumbnail(max_size, Image.Resampling.LANCZOS)
+            
+            # Convertir en RGB si nécessaire (pour éviter les problèmes avec PNG)
+            if image.mode in ("RGBA", "P"):
+                image = image.convert("RGB")
+            
+            # Sauvegarder l'image
+            image.save(filepath, "JPEG", quality=85)
+            return filepath
+            
+        except Exception as e:
+            st.error(f"Erreur lors de la sauvegarde de l'image : {e}")
+            return None
+    return None
+
+def display_image_from_config():
+    """Affiche l'image selon la configuration"""
+    image_config = load_image_config()
+    
+    if image_config.get("image_type") == "url" and image_config.get("image_url"):
+        try:
+            st.image(image_config["image_url"], caption=image_config.get("image_caption", ""), use_container_width=True)
+            return True
+        except Exception as e:
+            st.error("Erreur lors du chargement de l'image depuis l'URL")
+            return False
+    elif image_config.get("image_type") == "local" and image_config.get("image_path"):
+        try:
+            if os.path.exists(image_config["image_path"]):
+                st.image(image_config["image_path"], caption=image_config.get("image_caption", ""), use_container_width=True)
+                return True
+            else:
+                st.error("Le fichier image local n'existe plus")
+                return False
+        except Exception as e:
+            st.error("Erreur lors du chargement de l'image locale")
+            return False
+    else:
+        st.info("Aucune image configurée")
+        return False
+
+def home_page():
+    """Page d'accueil"""
+    st.title("Journée de la jeunesse")
+    st.markdown("---")
+    
+    # Configuration en deux colonnes
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("<br><br>", unsafe_allow_html=True)  # Espacement
+        if st.button("S'inscrire à l'événement", type="primary", use_container_width=True):
+            st.session_state.page = 'inscription'
+            st.rerun()
+    
+    with col2:
+        # Affichage de l'image
+        display_image_from_config()
+
 def init_session_state():
     """Initialise les variables de session"""
     if 'logged_in' not in st.session_state:
@@ -65,7 +162,7 @@ def init_session_state():
     if 'captcha_question' not in st.session_state:
         st.session_state.captcha_question, st.session_state.captcha_answer = generate_captcha()
     if 'page' not in st.session_state:
-        st.session_state.page = 'inscription'
+        st.session_state.page = 'accueil'
 
 def registration_page():
     """Page d'inscription pour les participants"""
@@ -169,11 +266,12 @@ def moderator_dashboard():
     st.title("Tableau de bord - Modérateurs")
     
     # Menu de navigation
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Inscriptions en attente", 
         "Inscriptions confirmées", 
         "Historique", 
-        "Export emails"
+        "Export emails",
+        "Gestion image"
     ])
     
     registrations = load_data(REGISTRATIONS_FILE)
@@ -303,6 +401,133 @@ def moderator_dashboard():
                     )
                 else:
                     st.info(f"Aucune inscription confirmée pour {selected_year}.")
+    
+    with tab5:
+        st.header("Gestion de l'image d'accueil")
+        
+        image_config = load_image_config()
+        
+        with st.form("image_form"):
+            st.subheader("Configuration de l'image")
+            
+            # Choix du type d'image
+            image_type = st.radio(
+                "Type d'image",
+                ["none", "local", "url"],
+                format_func=lambda x: {
+                    "none": "Aucune image",
+                    "local": "Image depuis mon PC",
+                    "url": "Image depuis une URL"
+                }[x],
+                index=["none", "local", "url"].index(image_config.get("image_type", "none"))
+            )
+            
+            image_url = ""
+            uploaded_file = None
+            
+            if image_type == "url":
+                # URL de l'image
+                image_url = st.text_input(
+                    "URL de l'image",
+                    value=image_config.get("image_url", "") if image_config.get("image_type") == "url" else "",
+                    placeholder="https://exemple.com/image.jpg"
+                )
+            elif image_type == "local":
+                # Upload d'image locale
+                uploaded_file = st.file_uploader(
+                    "Choisir une image depuis votre PC",
+                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp'],
+                    help="Formats supportés : PNG, JPG, JPEG, GIF, BMP. L'image sera automatiquement redimensionnée si nécessaire."
+                )
+            
+            # Légende de l'image
+            image_caption = st.text_input(
+                "Légende de l'image (optionnel)",
+                value=image_config.get("image_caption", ""),
+                placeholder="Description de l'image"
+            )
+            
+            submitted = st.form_submit_button("Sauvegarder", type="primary")
+            
+            if submitted:
+                new_config = {
+                    "image_type": image_type,
+                    "image_url": "",
+                    "image_path": "",
+                    "image_caption": image_caption.strip()
+                }
+                
+                if image_type == "url" and image_url.strip():
+                    new_config["image_url"] = image_url.strip()
+                elif image_type == "local" and uploaded_file is not None:
+                    # Sauvegarder l'image uploadée
+                    saved_path = save_uploaded_image(uploaded_file)
+                    if saved_path:
+                        new_config["image_path"] = saved_path
+                        # Supprimer l'ancienne image si elle existe
+                        old_config = load_image_config()
+                        if (old_config.get("image_type") == "local" and 
+                            old_config.get("image_path") and 
+                            os.path.exists(old_config["image_path"]) and
+                            old_config["image_path"] != saved_path):
+                            try:
+                                os.remove(old_config["image_path"])
+                            except:
+                                pass
+                    else:
+                        st.error("Erreur lors de la sauvegarde de l'image")
+                        st.stop()
+                elif image_type == "local" and image_config.get("image_type") == "local":
+                    # Garder l'image existante si aucune nouvelle image n'est uploadée
+                    new_config["image_path"] = image_config.get("image_path", "")
+                
+                save_image_config(new_config)
+                st.success("Configuration de l'image sauvegardée !")
+                st.rerun()
+        
+        # Prévisualisation
+        st.subheader("Prévisualisation actuelle")
+        if not display_image_from_config():
+            pass  # Message déjà affiché dans display_image_from_config()
+        
+        # Gestion des images uploadées
+        st.subheader("Gestion des fichiers")
+        if os.path.exists(IMAGES_FOLDER):
+            image_files = [f for f in os.listdir(IMAGES_FOLDER) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp'))]
+            if image_files:
+                st.write(f"**{len(image_files)} image(s) stockée(s) localement**")
+                
+                # Calculer la taille totale
+                total_size = 0
+                for file in image_files:
+                    filepath = os.path.join(IMAGES_FOLDER, file)
+                    if os.path.exists(filepath):
+                        total_size += os.path.getsize(filepath)
+                
+                size_mb = total_size / (1024 * 1024)
+                st.write(f"Espace utilisé : {size_mb:.2f} MB")
+                
+                # Option pour nettoyer les anciennes images
+                if st.button("Nettoyer les images non utilisées", help="Supprime toutes les images sauf celle actuellement configurée"):
+                    current_image = image_config.get("image_path", "")
+                    deleted_count = 0
+                    
+                    for file in image_files:
+                        filepath = os.path.join(IMAGES_FOLDER, file)
+                        if filepath != current_image:
+                            try:
+                                os.remove(filepath)
+                                deleted_count += 1
+                            except:
+                                pass
+                    
+                    if deleted_count > 0:
+                        st.success(f"{deleted_count} image(s) supprimée(s)")
+                        st.rerun()
+                    else:
+                        st.info("Aucune image à supprimer")
+            else:
+                st.info("Aucune image stockée localement")
 
 def main():
     """Fonction principale"""
@@ -311,6 +536,10 @@ def main():
     # Sidebar pour la navigation
     with st.sidebar:
         st.title("Navigation")
+        
+        if st.button("Accueil", use_container_width=True):
+            st.session_state.page = 'accueil'
+            st.rerun()
         
         if st.button("Inscription", use_container_width=True):
             st.session_state.page = 'inscription'
@@ -324,7 +553,7 @@ def main():
             st.success("Connecté en tant que modérateur")
             if st.button("Se déconnecter", use_container_width=True):
                 st.session_state.logged_in = False
-                st.session_state.page = 'inscription'
+                st.session_state.page = 'accueil'
                 st.rerun()
         
         st.markdown("---")
@@ -346,7 +575,9 @@ def main():
             st.markdown(f"- En attente : {pending}")
     
     # Affichage de la page appropriée
-    if st.session_state.page == 'inscription':
+    if st.session_state.page == 'accueil':
+        home_page()
+    elif st.session_state.page == 'inscription':
         registration_page()
     elif st.session_state.page == 'moderator':
         if not st.session_state.logged_in:
