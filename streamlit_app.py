@@ -69,46 +69,46 @@ def init_session_state():
 
 def registration_page():
     """Page d'inscription pour les participants"""
-    st.title("🎉 Inscription à l'Événement")
+    st.title("Inscription JdJ")
     st.markdown("---")
     
     with st.form("inscription_form"):
-        st.header("📝 Informations personnelles")
+        st.header("Informations personnelles")
         
         # Champs du formulaire
-        email = st.text_input("📧 Adresse email *", placeholder="votre.email@exemple.com")
+        email = st.text_input("Adresse email *", placeholder="votre.email@exemple.com")
         col1, col2 = st.columns(2)
         
         with col1:
-            nom = st.text_input("👤 Nom *", placeholder="Dupont")
+            nom = st.text_input("Nom *", placeholder="Dupont")
         with col2:
-            prenom = st.text_input("👤 Prénom *", placeholder="Jean")
+            prenom = st.text_input("Prénom *", placeholder="Jean")
         
         date_naissance = st.date_input(
-            "📅 Date de naissance *",
+            "Date de naissance *",
             min_value=date(1900, 1, 1),
             max_value=date.today()
         )
         
         # Captcha
-        st.subheader("🤖 Vérification anti-robot")
+        st.subheader("Vérification anti-robot")
         st.write(f"Résolvez cette opération : **{st.session_state.captcha_question}**")
         captcha_response = st.number_input("Votre réponse", min_value=-100, max_value=100, value=0)
         
-        submitted = st.form_submit_button("✅ S'inscrire", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("S'inscrire", type="primary", use_container_width=True)
         
         if submitted:
             # Validation des champs
             errors = []
             
             if not email or not validate_email(email):
-                errors.append("❌ Adresse email invalide")
+                errors.append("Adresse email invalide")
             if not nom.strip():
-                errors.append("❌ Le nom est obligatoire")
+                errors.append("Le nom est obligatoire")
             if not prenom.strip():
-                errors.append("❌ Le prénom est obligatoire")
+                errors.append("Le prénom est obligatoire")
             if captcha_response != st.session_state.captcha_answer:
-                errors.append("❌ Réponse incorrecte au captcha")
+                errors.append("Réponse incorrecte au captcha")
             
             if errors:
                 for error in errors:
@@ -128,7 +128,7 @@ def registration_page():
                 email_exists = any(reg['email'] == email for reg in registrations[current_year])
                 
                 if email_exists:
-                    st.error("❌ Cette adresse email est déjà enregistrée")
+                    st.error("Cette adresse email est déjà enregistrée")
                 else:
                     new_registration = {
                         'id': len(registrations[current_year]) + 1,
@@ -143,14 +143,14 @@ def registration_page():
                     registrations[current_year].append(new_registration)
                     save_data(registrations, REGISTRATIONS_FILE)
                     
-                    st.success("🎉 Inscription réussie ! Votre demande sera examinée par les modérateurs.")
+                    st.success("Inscription réussie ! Votre demande sera examinée par les modérateurs.")
                     
                     # Générer un nouveau captcha pour la prochaine inscription
                     st.session_state.captcha_question, st.session_state.captcha_answer = generate_captcha()
 
 def moderator_login():
     """Page de connexion pour les modérateurs"""
-    st.title("🔐 Connexion Modérateur")
+    st.title("Connexion Modérateur")
     
     with st.form("login_form"):
         password = st.text_input("Mot de passe", type="password")
@@ -166,21 +166,21 @@ def moderator_login():
 
 def moderator_dashboard():
     """Tableau de bord pour les modérateurs"""
-    st.title("👨‍💼 Tableau de bord - Modérateurs")
+    st.title("Tableau de bord - Modérateurs")
     
     # Menu de navigation
     tab1, tab2, tab3, tab4 = st.tabs([
-        "📋 Inscriptions en attente", 
-        "✅ Inscriptions confirmées", 
-        "📊 Historique", 
-        "📧 Export emails"
+        "Inscriptions en attente", 
+        "Inscriptions confirmées", 
+        "Historique", 
+        "Export emails"
     ])
     
     registrations = load_data(REGISTRATIONS_FILE)
     current_year = str(datetime.now().year)
     
     with tab1:
-        st.header("📋 Inscriptions en attente de validation")
+        st.header("Inscriptions en attente de validation")
         
         if current_year not in registrations or not registrations[current_year]:
             st.info("Aucune inscription en attente pour cette année.")
@@ -196,12 +196,12 @@ def moderator_dashboard():
                         
                         with col1:
                             st.write(f"**{reg['prenom']} {reg['nom']}**")
-                            st.write(f"📧 {reg['email']}")
-                            st.write(f"📅 Né(e) le {reg['date_naissance']}")
-                            st.write(f"🕐 Inscrit le {reg['date_inscription'][:10]}")
+                            st.write(f"Email: {reg['email']}")
+                            st.write(f"Né(e) le {reg['date_naissance']}")
+                            st.write(f"Inscrit le {reg['date_inscription'][:10]}")
                         
                         with col2:
-                            if st.button("✅ Confirmer", key=f"confirm_{reg['id']}"):
+                            if st.button("Confirmer", key=f"confirm_{reg['id']}"):
                                 # Confirmer l'inscription
                                 for i, r in enumerate(registrations[current_year]):
                                     if r['id'] == reg['id']:
@@ -212,7 +212,7 @@ def moderator_dashboard():
                                 st.rerun()
                         
                         with col3:
-                            if st.button("❌ Supprimer", key=f"delete_{reg['id']}"):
+                            if st.button("Supprimer", key=f"delete_{reg['id']}"):
                                 # Supprimer l'inscription
                                 registrations[current_year] = [r for r in registrations[current_year] if r['id'] != reg['id']]
                                 save_data(registrations, REGISTRATIONS_FILE)
@@ -222,7 +222,7 @@ def moderator_dashboard():
                         st.markdown("---")
     
     with tab2:
-        st.header("✅ Inscriptions confirmées")
+        st.header("Inscriptions confirmées")
         
         if current_year not in registrations or not registrations[current_year]:
             st.info("Aucune inscription confirmée pour cette année.")
@@ -241,7 +241,7 @@ def moderator_dashboard():
                 st.dataframe(df, use_container_width=True)
     
     with tab3:
-        st.header("📊 Historique des années précédentes")
+        st.header("Historique des années précédentes")
         
         if not registrations:
             st.info("Aucun historique disponible.")
@@ -253,7 +253,7 @@ def moderator_dashboard():
                     confirmed_count = len([reg for reg in registrations[year] if reg['confirmed']])
                     total_count = len(registrations[year])
                     
-                    with st.expander(f"📅 Année {year} - {confirmed_count}/{total_count} confirmées"):
+                    with st.expander(f"Année {year} - {confirmed_count}/{total_count} confirmées"):
                         confirmed_year = [reg for reg in registrations[year] if reg['confirmed']]
                         
                         if confirmed_year:
@@ -265,7 +265,7 @@ def moderator_dashboard():
                             st.info("Aucune inscription confirmée pour cette année.")
     
     with tab4:
-        st.header("📧 Export des adresses email")
+        st.header("Export des adresses email")
         
         # Sélection de l'année
         available_years = list(registrations.keys()) if registrations else []
@@ -292,11 +292,11 @@ def moderator_dashboard():
                     )
                     
                     # Bouton de copie (information)
-                    st.info("💡 Vous pouvez sélectionner le texte ci-dessus et le copier avec Ctrl+C")
+                    st.info("Vous pouvez sélectionner le texte ci-dessus et le copier avec Ctrl+C")
                     
                     # Download button
                     st.download_button(
-                        label="💾 Télécharger la liste des emails",
+                        label="Télécharger la liste des emails",
                         data=emails_text,
                         file_name=f"emails_{selected_year}.txt",
                         mime="text/plain"
@@ -312,23 +312,23 @@ def main():
     with st.sidebar:
         st.title("Navigation")
         
-        if st.button("🎉 Inscription", use_container_width=True):
+        if st.button("Inscription", use_container_width=True):
             st.session_state.page = 'inscription'
             st.rerun()
         
-        if st.button("🔐 Modérateurs", use_container_width=True):
+        if st.button("Modérateurs", use_container_width=True):
             st.session_state.page = 'moderator'
             st.rerun()
         
         if st.session_state.logged_in:
-            st.success("✅ Connecté en tant que modérateur")
-            if st.button("🚪 Se déconnecter", use_container_width=True):
+            st.success("Connecté en tant que modérateur")
+            if st.button("Se déconnecter", use_container_width=True):
                 st.session_state.logged_in = False
                 st.session_state.page = 'inscription'
                 st.rerun()
         
         st.markdown("---")
-        st.markdown("### ℹ️ Informations")
+        st.markdown("### Informations")
         st.markdown("**Année actuelle :** " + str(datetime.now().year))
         
         # Statistiques rapides
