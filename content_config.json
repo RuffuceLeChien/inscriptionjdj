@@ -1,0 +1,31 @@
+{
+  "elements": [
+    {
+      "type": "text",
+      "style": "header",
+      "content": "Je te louerai !"
+    },
+    {
+      "type": "spacer",
+      "height": 100
+    },
+    {
+      "type": "text",
+      "style": "subheader",
+      "content": "La louange dans notre foi - Samedi 9 août 2025"
+    },
+    {
+      "type": "spacer",
+      "height": 200
+    },
+    {
+      "type": "spacer",
+      "height": 200
+    },
+    {
+      "type": "text",
+      "style": "normal",
+      "content": "Orateur :  Benoit Pfister"
+    }
+  ]
+}

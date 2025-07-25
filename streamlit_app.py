@@ -199,23 +199,23 @@ def home_page():
     st.title("Journée de la jeunesse")
     st.markdown("---")
     
-    # Affichage du contenu personnalisé en haut
-    display_custom_content()
-    
-    # Espace au-dessus du bouton
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # Configuration en deux colonnes
+    # Configuration en deux colonnes principales
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.markdown("<br><br>", unsafe_allow_html=True)  # Espacement supplémentaire
+        # Affichage du contenu personnalisé dans la colonne de gauche
+        display_custom_content()
+        
+        # Espace au-dessus du bouton
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Bouton d'inscription
         if st.button("S'inscrire à l'événement", type="primary", use_container_width=True):
             st.session_state.page = 'inscription'
             st.rerun()
     
     with col2:
-        # Affichage de l'image principale
+        # Affichage de l'image principale dans la colonne de droite
         display_image_from_config()
 
 def init_session_state():
@@ -623,7 +623,7 @@ def moderator_dashboard():
     
     with tab6:
         st.header("Gestion du contenu personnalisé")
-        st.info("💡 Ce contenu apparaîtra en haut de la page d'accueil, au-dessus du bouton d'inscription")
+        st.info("💡 Ce contenu apparaîtra dans la colonne de gauche de la page d'accueil, à côté de l'image")
         
         content_config = load_content_config()
         
@@ -852,23 +852,25 @@ def main():
                 st.session_state.page = 'accueil'
                 st.rerun()
         
-        st.markdown("---")
-        st.markdown("### Informations")
-        st.markdown("**Année actuelle :** " + str(datetime.now().year))
-        
-        # Statistiques rapides
-        registrations = load_data(REGISTRATIONS_FILE)
-        current_year = str(datetime.now().year)
-        
-        if current_year in registrations:
-            total = len(registrations[current_year])
-            confirmed = len([reg for reg in registrations[current_year] if reg['confirmed']])
-            pending = total - confirmed
+        # Informations visibles seulement pour les modérateurs
+        if st.session_state.logged_in:
+            st.markdown("---")
+            st.markdown("### Informations")
+            st.markdown("**Année actuelle :** " + str(datetime.now().year))
             
-            st.markdown(f"**Inscriptions {current_year} :**")
-            st.markdown(f"- Total : {total}")
-            st.markdown(f"- Confirmées : {confirmed}")
-            st.markdown(f"- En attente : {pending}")
+            # Statistiques rapides
+            registrations = load_data(REGISTRATIONS_FILE)
+            current_year = str(datetime.now().year)
+            
+            if current_year in registrations:
+                total = len(registrations[current_year])
+                confirmed = len([reg for reg in registrations[current_year] if reg['confirmed']])
+                pending = total - confirmed
+                
+                st.markdown(f"**Inscriptions {current_year} :**")
+                st.markdown(f"- Total : {total}")
+                st.markdown(f"- Confirmées : {confirmed}")
+                st.markdown(f"- En attente : {pending}")
     
     # Affichage de la page appropriée
     if st.session_state.page == 'accueil':
