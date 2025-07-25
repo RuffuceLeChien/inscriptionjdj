@@ -407,25 +407,27 @@ def moderator_dashboard():
         
         image_config = load_image_config()
         
+        st.subheader("Configuration de l'image")
+        
+        # Choix du type d'image (en dehors du formulaire pour plus de réactivité)
+        image_type = st.radio(
+            "Type d'image",
+            ["none", "local", "url"],
+            format_func=lambda x: {
+                "none": "Aucune image",
+                "local": "📁 Image depuis mon PC",
+                "url": "🌐 Image depuis une URL"
+            }[x],
+            index=["none", "local", "url"].index(image_config.get("image_type", "none"))
+        )
+        
+        # Formulaire avec les champs appropriés selon le type sélectionné
         with st.form("image_form"):
-            st.subheader("Configuration de l'image")
-            
-            # Choix du type d'image
-            image_type = st.radio(
-                "Type d'image",
-                ["none", "local", "url"],
-                format_func=lambda x: {
-                    "none": "Aucune image",
-                    "local": "Image depuis mon PC",
-                    "url": "Image depuis une URL"
-                }[x],
-                index=["none", "local", "url"].index(image_config.get("image_type", "none"))
-            )
-            
             image_url = ""
             uploaded_file = None
             
             if image_type == "url":
+                st.info("💡 Entrez l'URL complète d'une image hébergée sur internet")
                 # URL de l'image
                 image_url = st.text_input(
                     "URL de l'image",
@@ -433,21 +435,39 @@ def moderator_dashboard():
                     placeholder="https://exemple.com/image.jpg"
                 )
             elif image_type == "local":
+                st.info("📤 Sélectionnez une image depuis votre ordinateur")
                 # Upload d'image locale
                 uploaded_file = st.file_uploader(
                     "Choisir une image depuis votre PC",
                     type=['png', 'jpg', 'jpeg', 'gif', 'bmp'],
-                    help="Formats supportés : PNG, JPG, JPEG, GIF, BMP. L'image sera automatiquement redimensionnée si nécessaire."
+                    help="Formats supportés : PNG, JPG, JPEG, GIF, BMP. L'image sera automatiquement redimensionnée si nécessaire.",
+                    key="image_uploader"
+                )
+                
+                # Afficher un aperçu de l'image uploadée
+                if uploaded_file is not None:
+                    st.success(f"✅ Image sélectionnée : {uploaded_file.name}")
+                    try:
+                        # Prévisualisation de l'image uploadée
+                        image_preview = Image.open(uploaded_file)
+                        st.image(image_preview, caption="Aperçu de l'image à uploader", width=300)
+                        # Remettre le pointeur au début du fichier
+                        uploaded_file.seek(0)
+                    except Exception as e:
+                        st.error("Erreur lors de la prévisualisation de l'image")
+            elif image_type == "none":
+                st.info("❌ Aucune image ne sera affichée sur la page d'accueil")
+            
+            # Légende de l'image (seulement si ce n'est pas "none")
+            image_caption = ""
+            if image_type != "none":
+                image_caption = st.text_input(
+                    "Légende de l'image (optionnel)",
+                    value=image_config.get("image_caption", ""),
+                    placeholder="Description de l'image"
                 )
             
-            # Légende de l'image
-            image_caption = st.text_input(
-                "Légende de l'image (optionnel)",
-                value=image_config.get("image_caption", ""),
-                placeholder="Description de l'image"
-            )
-            
-            submitted = st.form_submit_button("Sauvegarder", type="primary")
+            submitted = st.form_submit_button("💾 Sauvegarder la configuration", type="primary", use_container_width=True)
             
             if submitted:
                 new_config = {
@@ -459,30 +479,38 @@ def moderator_dashboard():
                 
                 if image_type == "url" and image_url.strip():
                     new_config["image_url"] = image_url.strip()
-                elif image_type == "local" and uploaded_file is not None:
-                    # Sauvegarder l'image uploadée
-                    saved_path = save_uploaded_image(uploaded_file)
-                    if saved_path:
-                        new_config["image_path"] = saved_path
-                        # Supprimer l'ancienne image si elle existe
-                        old_config = load_image_config()
-                        if (old_config.get("image_type") == "local" and 
-                            old_config.get("image_path") and 
-                            os.path.exists(old_config["image_path"]) and
-                            old_config["image_path"] != saved_path):
-                            try:
-                                os.remove(old_config["image_path"])
-                            except:
-                                pass
+                    st.success("✅ Configuration URL sauvegardée !")
+                elif image_type == "local":
+                    if uploaded_file is not None:
+                        # Sauvegarder l'image uploadée
+                        saved_path = save_uploaded_image(uploaded_file)
+                        if saved_path:
+                            new_config["image_path"] = saved_path
+                            # Supprimer l'ancienne image si elle existe
+                            old_config = load_image_config()
+                            if (old_config.get("image_type") == "local" and 
+                                old_config.get("image_path") and 
+                                os.path.exists(old_config["image_path"]) and
+                                old_config["image_path"] != saved_path):
+                                try:
+                                    os.remove(old_config["image_path"])
+                                except:
+                                    pass
+                            st.success("✅ Image uploadée et sauvegardée !")
+                        else:
+                            st.error("❌ Erreur lors de la sauvegarde de l'image")
+                            st.stop()
+                    elif image_config.get("image_type") == "local" and image_config.get("image_path"):
+                        # Garder l'image existante si aucune nouvelle image n'est uploadée
+                        new_config["image_path"] = image_config.get("image_path", "")
+                        st.success("✅ Configuration sauvegardée (image existante conservée)")
                     else:
-                        st.error("Erreur lors de la sauvegarde de l'image")
+                        st.warning("⚠️ Aucune image sélectionnée. Sélectionnez une image ou choisissez un autre type.")
                         st.stop()
-                elif image_type == "local" and image_config.get("image_type") == "local":
-                    # Garder l'image existante si aucune nouvelle image n'est uploadée
-                    new_config["image_path"] = image_config.get("image_path", "")
+                elif image_type == "none":
+                    st.success("✅ Configuration sauvegardée (aucune image)")
                 
                 save_image_config(new_config)
-                st.success("Configuration de l'image sauvegardée !")
                 st.rerun()
         
         # Prévisualisation
