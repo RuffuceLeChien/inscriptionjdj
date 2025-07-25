@@ -22,6 +22,7 @@ REGISTRATIONS_FILE = "registrations.json"
 CONFIRMED_FILE = "confirmed.json"
 MODERATORS_FILE = "moderators.json"
 IMAGE_CONFIG_FILE = "image_config.json"
+CONTENT_CONFIG_FILE = "content_config.json"
 IMAGES_FOLDER = "uploaded_images"
 
 # Mot de passe par défaut pour les modérateurs (à changer en production)
@@ -81,6 +82,19 @@ def save_image_config(config):
     with open(IMAGE_CONFIG_FILE, 'w', encoding='utf-8') as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
 
+def load_content_config():
+    """Charge la configuration du contenu modulable"""
+    try:
+        with open(CONTENT_CONFIG_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {"elements": []}
+
+def save_content_config(config):
+    """Sauvegarde la configuration du contenu modulable"""
+    with open(CONTENT_CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+
 def save_uploaded_image(uploaded_file):
     """Sauvegarde une image uploadée et retourne le chemin"""
     if uploaded_file is not None:
@@ -111,6 +125,49 @@ def save_uploaded_image(uploaded_file):
             return None
     return None
 
+def display_custom_content():
+    """Affiche le contenu personnalisé configuré par les administrateurs"""
+    content_config = load_content_config()
+    
+    if not content_config.get("elements"):
+        return
+    
+    for element in content_config["elements"]:
+        element_type = element.get("type")
+        
+        if element_type == "text":
+            if element.get("style") == "header":
+                st.header(element.get("content", ""))
+            elif element.get("style") == "subheader":
+                st.subheader(element.get("content", ""))
+            elif element.get("style") == "markdown":
+                st.markdown(element.get("content", ""))
+            else:  # normal text
+                st.write(element.get("content", ""))
+                
+        elif element_type == "image":
+            if element.get("image_type") == "url" and element.get("image_url"):
+                try:
+                    st.image(
+                        element["image_url"], 
+                        caption=element.get("caption", ""),
+                        width=element.get("width")
+                    )
+                except:
+                    st.error("Erreur lors du chargement de l'image")
+            elif element.get("image_type") == "local" and element.get("image_path"):
+                try:
+                    if os.path.exists(element["image_path"]):
+                        st.image(
+                            element["image_path"], 
+                            caption=element.get("caption", ""),
+                            width=element.get("width")
+                        )
+                    else:
+                        st.error("Image locale introuvable")
+                except:
+                    st.error("Erreur lors du chargement de l'image locale")
+                    
 def display_image_from_config():
     """Affiche l'image selon la configuration"""
     image_config = load_image_config()
@@ -142,17 +199,23 @@ def home_page():
     st.title("Journée de la jeunesse")
     st.markdown("---")
     
+    # Affichage du contenu personnalisé en haut
+    display_custom_content()
+    
+    # Espace au-dessus du bouton
+    st.markdown("<br>", unsafe_allow_html=True)
+    
     # Configuration en deux colonnes
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.markdown("<br><br>", unsafe_allow_html=True)  # Espacement
+        st.markdown("<br><br>", unsafe_allow_html=True)  # Espacement supplémentaire
         if st.button("S'inscrire à l'événement", type="primary", use_container_width=True):
             st.session_state.page = 'inscription'
             st.rerun()
     
     with col2:
-        # Affichage de l'image
+        # Affichage de l'image principale
         display_image_from_config()
 
 def init_session_state():
@@ -266,12 +329,13 @@ def moderator_dashboard():
     st.title("Tableau de bord - Modérateurs")
     
     # Menu de navigation
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Inscriptions en attente", 
         "Inscriptions confirmées", 
         "Historique", 
         "Export emails",
-        "Gestion image"
+        "Gestion image",
+        "Contenu personnalisé"
     ])
     
     registrations = load_data(REGISTRATIONS_FILE)
@@ -556,6 +620,210 @@ def moderator_dashboard():
                         st.info("Aucune image à supprimer")
             else:
                 st.info("Aucune image stockée localement")
+    
+    with tab6:
+        st.header("Gestion du contenu personnalisé")
+        st.info("💡 Ce contenu apparaîtra en haut de la page d'accueil, au-dessus du bouton d'inscription")
+        
+        content_config = load_content_config()
+        
+        # Prévisualisation du contenu actuel
+        if content_config.get("elements"):
+            st.subheader("📋 Prévisualisation du contenu actuel")
+            with st.container():
+                st.markdown("---")
+                display_custom_content()
+                st.markdown("---")
+        else:
+            st.info("Aucun contenu personnalisé configuré")
+        
+        st.subheader("➕ Ajouter un nouvel élément")
+        
+        with st.form("add_content_element"):
+            element_type = st.selectbox(
+                "Type d'élément",
+                ["text", "image", "spacer"],
+                format_func=lambda x: {
+                    "text": "📝 Texte",
+                    "image": "🖼️ Image", 
+                    "spacer": "📏 Espace"
+                }[x]
+            )
+            
+            if element_type == "text":
+                text_style = st.selectbox(
+                    "Style de texte",
+                    ["normal", "header", "subheader", "markdown"],
+                    format_func=lambda x: {
+                        "normal": "Texte normal",
+                        "header": "Titre principal",
+                        "subheader": "Sous-titre",
+                        "markdown": "Markdown (formatage avancé)"
+                    }[x]
+                )
+                
+                if text_style == "markdown":
+                    st.info("💡 Vous pouvez utiliser la syntaxe Markdown : **gras**, *italique*, [lien](url), etc.")
+                
+                text_content = st.text_area(
+                    "Contenu du texte",
+                    placeholder="Entrez votre texte ici...",
+                    height=100
+                )
+                
+            elif element_type == "image":
+                image_source = st.radio(
+                    "Source de l'image",
+                    ["url", "local"],
+                    format_func=lambda x: {"url": "🌐 URL", "local": "📁 Fichier local"}[x]
+                )
+                
+                image_url = ""
+                uploaded_image = None
+                
+                if image_source == "url":
+                    image_url = st.text_input(
+                        "URL de l'image",
+                        placeholder="https://exemple.com/image.jpg"
+                    )
+                else:
+                    uploaded_image = st.file_uploader(
+                        "Choisir une image",
+                        type=['png', 'jpg', 'jpeg', 'gif', 'bmp'],
+                        key="content_image_uploader"
+                    )
+                
+                image_caption = st.text_input("Légende (optionnel)")
+                image_width = st.number_input("Largeur de l'image (pixels, 0 = automatique)", min_value=0, max_value=800, value=0)
+                
+            elif element_type == "spacer":
+                spacer_height = st.number_input("Hauteur de l'espace (pixels)", min_value=10, max_value=200, value=30)
+            
+            add_element = st.form_submit_button("➕ Ajouter l'élément", type="primary")
+            
+            if add_element:
+                new_element = {"type": element_type}
+                
+                if element_type == "text":
+                    if not text_content.strip():
+                        st.error("Le contenu du texte ne peut pas être vide")
+                    else:
+                        new_element.update({
+                            "style": text_style,
+                            "content": text_content.strip()
+                        })
+                        
+                elif element_type == "image":
+                    if image_source == "url":
+                        if not image_url.strip():
+                            st.error("L'URL de l'image ne peut pas être vide")
+                        else:
+                            new_element.update({
+                                "image_type": "url",
+                                "image_url": image_url.strip(),
+                                "caption": image_caption.strip(),
+                                "width": image_width if image_width > 0 else None
+                            })
+                    else:  # local
+                        if uploaded_image is None:
+                            st.error("Veuillez sélectionner une image")
+                        else:
+                            saved_path = save_uploaded_image(uploaded_image)
+                            if saved_path:
+                                new_element.update({
+                                    "image_type": "local",
+                                    "image_path": saved_path,
+                                    "caption": image_caption.strip(),
+                                    "width": image_width if image_width > 0 else None
+                                })
+                            else:
+                                st.error("Erreur lors de la sauvegarde de l'image")
+                                st.stop()
+                                
+                elif element_type == "spacer":
+                    new_element.update({
+                        "height": spacer_height
+                    })
+                
+                # Ajouter l'élément à la configuration
+                if "content" in new_element or "image_url" in new_element or "image_path" in new_element or "height" in new_element:
+                    content_config["elements"].append(new_element)
+                    save_content_config(content_config)
+                    st.success("✅ Élément ajouté avec succès !")
+                    st.rerun()
+        
+        # Gestion des éléments existants
+        if content_config.get("elements"):
+            st.subheader("🗂️ Gérer les éléments existants")
+            
+            for i, element in enumerate(content_config["elements"]):
+                with st.expander(f"Élément {i+1} - {element['type'].title()}", expanded=False):
+                    col1, col2, col3 = st.columns([2, 1, 1])
+                    
+                    with col1:
+                        if element["type"] == "text":
+                            st.write(f"**Style:** {element.get('style', 'normal')}")
+                            content_preview = element.get('content', '')[:100]
+                            if len(element.get('content', '')) > 100:
+                                content_preview += "..."
+                            st.write(f"**Contenu:** {content_preview}")
+                        elif element["type"] == "image":
+                            st.write(f"**Source:** {element.get('image_type', 'inconnue')}")
+                            if element.get('caption'):
+                                st.write(f"**Légende:** {element['caption']}")
+                        elif element["type"] == "spacer":
+                            st.write(f"**Hauteur:** {element.get('height', 0)}px")
+                    
+                    with col2:
+                        if st.button("⬆️ Monter", key=f"up_{i}", disabled=(i == 0)):
+                            # Échanger avec l'élément précédent
+                            content_config["elements"][i], content_config["elements"][i-1] = \
+                                content_config["elements"][i-1], content_config["elements"][i]
+                            save_content_config(content_config)
+                            st.rerun()
+                        
+                        if st.button("⬇️ Descendre", key=f"down_{i}", disabled=(i == len(content_config["elements"])-1)):
+                            # Échanger avec l'élément suivant
+                            content_config["elements"][i], content_config["elements"][i+1] = \
+                                content_config["elements"][i+1], content_config["elements"][i]
+                            save_content_config(content_config)
+                            st.rerun()
+                    
+                    with col3:
+                        if st.button("🗑️ Supprimer", key=f"delete_{i}", type="secondary"):
+                            # Supprimer l'image locale si c'est une image locale
+                            if (element["type"] == "image" and 
+                                element.get("image_type") == "local" and 
+                                element.get("image_path") and 
+                                os.path.exists(element["image_path"])):
+                                try:
+                                    os.remove(element["image_path"])
+                                except:
+                                    pass
+                            
+                            # Supprimer l'élément
+                            content_config["elements"].pop(i)
+                            save_content_config(content_config)
+                            st.success("Élément supprimé !")
+                            st.rerun()
+            
+            # Bouton pour tout effacer
+            st.markdown("---")
+            if st.button("🗑️ Effacer tout le contenu personnalisé", type="secondary"):
+                # Supprimer toutes les images locales
+                for element in content_config.get("elements", []):
+                    if (element["type"] == "image" and 
+                        element.get("image_type") == "local" and 
+                        element.get("image_path") and 
+                        os.path.exists(element["image_path"])):
+                        try:
+                            os.remove(element["image_path"])
+                        except:
+                            pass
+                
+                save_content_config({"elements": []})
+                st.success("Tout le contenu personnalisé a été effacé !")
+                st.rerun()
 
 def main():
     """Fonction principale"""
